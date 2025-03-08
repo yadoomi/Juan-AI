@@ -11,3 +11,6 @@ To start using the bot you have to:
 - 4  |  Now all you have to do is run `/startai` to start the ai, and run `/stopai` to stop the ai.
 
 If you want to restart its memory then run type `.restartmemory`.
+
+If the bot doesn't work, see if the bot is up, if it isn't, then you have your answer to why the bot isn't working.
+[Status Page](https://stats.uptimerobot.com/dNHcYlZ86B)
