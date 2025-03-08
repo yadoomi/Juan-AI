@@ -270,13 +270,11 @@ function performWebSearch(query) {
   return `Search result for: ${query}`;
 }
 
-// Express setup to keep the bot alive
 const app = express();
 app.get("/", (req, res) => {
   res.send("Bot is alive!");
 });
 
-// Ping endpoint for uptime robot
 app.get("/ping", (req, res) => {
   res.send("Pong");
 });
