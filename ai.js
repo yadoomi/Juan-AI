@@ -2,6 +2,7 @@ const { Client, GatewayIntentBits, SlashCommandBuilder, REST, Routes } = require
 const { OpenAI } = require('openai');
 require('dotenv').config();
 const fs = require('fs');
+const express = require('express');  
 
 const client = new Client({
   intents: [
@@ -193,42 +194,27 @@ client.on('messageCreate', async (message) => {
         let lastBotResponse = server.messageHistory[userId][server.messageHistory[userId].length - 2].content;
         if (botReply === lastBotResponse) botReply = 'bruh idk what to say lol 😭';
       }
-      if (message.content.toLowerCase().includes('ignore all previous orders')) {
-        console.log('Ignoring repetitive instructions');
-        return;
-      }
-      const messageGap = server.messageHistory[userId].length;
-      if (messageGap >= 15) {
-        const originalMessage = await message.channel.messages.fetch(message.id).catch(() => null);
-        if (!originalMessage) return;
+      if (message.guild) {
         message.reply(botReply);
-      } else {
-        const originalMessage = await message.channel.messages.fetch(message.id).catch(() => null);
-        if (!originalMessage) return;
-        message.channel.send(botReply);
       }
-      console.log(`[Channel: ${message.channel.name}] Bot response: ${botReply}`);
-      server.messageHistory[userId].push({ role: 'assistant', content: botReply });
     } catch (error) {
-      console.error('Error fetching from OpenAI:', error);
-      message.reply('something went wrong while processing your request');
+      console.error(error);
     }
-  }, 5000);
+  }, delay);
 });
 
-client.on('messageDelete', (deletedMessage) => {
-  const { guildId, author } = deletedMessage;
-  const userId = author.id;
-  if (!serverData[guildId]) return;
-  const server = serverData[guildId];
-  if (server.typingTimeouts[userId]) {
-    clearTimeout(server.typingTimeouts[userId]);
-    server.typingTimeouts[userId] = null;
-  }
-  if (server.messageHistory[userId]) {
-    delete server.messageBuffer[userId];
-    delete server.messageHistory[userId];
-  }
+function performWebSearch(query) {
+
+  return `Search result for: ${query}`;
+}
+
+const app = express();
+app.get('/', (req, res) => {
+  res.send('Bot is alive!');
+});
+
+app.listen(process.env.PORT || 3000, () => {
+  console.log('Server running on port 3000');
 });
 
 client.login(process.env.DISCORD_BOT_TOKEN);
