@@ -9,3 +9,5 @@ To start using the bot you have to:
 - 2  |  Use the command `/key` and put in the value `key` your [OpenAI API key](https://platform.openai.com/api-keys), by the way you have to have Administrator permissions to run commands,
 - 3  |  Make sure you put in the correct Key by doing `/currentkey` and checking if the key is your key,
 - 4  |  Now all you have to do is run `/startai` to start the ai, and run `/stopai` to stop the ai.
+
+If you want to restart its memory then run type `.restartmemory`.
