@@ -1,6 +1,8 @@
 # Juan-AI
 Juan AI is a discord bot that uses AI to respond to messages.
 
+## **STILL IN PROGRESS WON'T WORK**
+
 You will need a [OpenAI API key](https://platform.openai.com/api-keys) to do this.
 
 To start using the bot you have to:
