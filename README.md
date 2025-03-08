@@ -13,4 +13,4 @@ To start using the bot you have to:
 If you want to restart its memory then run type `.restartmemory`.
 
 If the bot doesn't work, see if the bot is up, if it isn't, then you have your answer to why the bot isn't working.
-[Status Page](https://stats.uptimerobot.com/dNHcYlZ86B)
+[Status Page](https://stats.uptimerobot.com/dNHcYlZ86B/798726590)
