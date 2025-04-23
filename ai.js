@@ -42,6 +42,7 @@ const registerCommands = async () => {
 
 client.on('ready', async () => {
   console.log('Bot is ready');
+  console.log('Version 1.5');
   await registerCommands();
 });
 
