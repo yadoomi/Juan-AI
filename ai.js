@@ -27,7 +27,7 @@ const registerCommands = async () => {
     new SlashCommandBuilder().setName('currentkey').setDescription('Check the stored OpenAI API key'),
     new SlashCommandBuilder().setName('startai').setDescription('Turn on the AI bot'),
     new SlashCommandBuilder().setName('stopai').setDescription('Turn off the AI bot'),
-    new SlashCommandBuilder().setName('resetmemory').setDescription('Reset the AI’s memory'),
+    new SlashCommandBuilder().setName('wipememory').setDescription('Wipe the AI’s memory'),
   ].map(cmd => cmd.setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages).toJSON());
 
   const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_BOT_TOKEN);
@@ -42,7 +42,7 @@ const registerCommands = async () => {
 
 client.on('ready', async () => {
   console.log('Bot is ready');
-  console.log('Version 1.5');
+  console.log('Version 1.5.5');
   await registerCommands();
 });
 
@@ -107,14 +107,14 @@ client.on('interactionCreate', async (interaction) => {
       await interaction.reply({ content: 'AI is now inactive.', ephemeral: false });
     }
 
-    if (commandName === 'resetmemory') {
+    if (commandName === 'wipememory') {
       server.messageHistory = {};
       server.messageBuffer = {};
       server.lastMessageTime = {};
       server.typingTimeouts = {};
       server.memory = [];
-      botStateChannels.forEach(ch => ch.send('AI memory has been reset.'));
-      await interaction.reply({ content: 'AI memory has been reset.', ephemeral: false });
+      botStateChannels.forEach(ch => ch.send('AI memory has been wiped.'));
+      await interaction.reply({ content: 'AI memory has been wiped.', ephemeral: false });
     }
   } catch (error) {
     console.error(error);
@@ -192,7 +192,7 @@ client.on('messageCreate', async (message) => {
 
       if (server.messageHistory[displayName].length > 1) {
         let lastBotResponse = server.messageHistory[displayName][server.messageHistory[displayName].length - 2].content;
-        if (botReply === lastBotResponse) botReply = 'bruh idk what to say lol 😭';
+        if (botReply === lastBotResponse) botReply = 'is anyone there?';
       }
 
       const originalMessage = await message.channel.messages.fetch(message.id).catch(() => null);
@@ -208,7 +208,7 @@ client.on('messageCreate', async (message) => {
       server.messageHistory[displayName].push({ role: 'assistant', content: botReply });
     } catch (error) {
       console.error('Error fetching from OpenAI:', error);
-      message.reply('something went wrong while processing your request');
+      message.reply('u sent this right before my memory went boom and idk what u sent anymore and what i was going to say🤷‍♂️');
     }
   }, 5000);
 });
