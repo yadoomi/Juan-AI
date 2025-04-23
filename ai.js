@@ -28,7 +28,14 @@ const registerCommands = async () => {
     new SlashCommandBuilder().setName('startai').setDescription('Turn on the AI bot'),
     new SlashCommandBuilder().setName('stopai').setDescription('Turn off the AI bot'),
     new SlashCommandBuilder().setName('wipememory').setDescription('Wipe the AI’s memory'),
-  ].map(cmd => cmd.setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages).toJSON())
+    new SlashCommandBuilder().setName('optout').setDescription('Opt out of AI interactions'),
+    new SlashCommandBuilder().setName('optin').setDescription('Opt back in to AI interactions'),
+  ].map(cmd => {
+    if (!['optout', 'optin'].includes(cmd.name)) {
+      cmd.setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages)
+    }
+    return cmd.toJSON()
+  })
 
   const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_BOT_TOKEN)
   try {
@@ -42,23 +49,13 @@ const registerCommands = async () => {
 
 client.on('ready', async () => {
   console.log('Bot is ready')
-  console.log('Version 1.5.7')
+  console.log('Version 1.6')
   await registerCommands()
 })
 
 client.on('interactionCreate', async (interaction) => {
   if (!interaction.isCommand()) return
-  const { commandName, guildId } = interaction
-
-  if (
-    !(
-      interaction.member.permissions.has(PermissionFlagsBits.Administrator) ||
-      interaction.member.permissions.has(PermissionFlagsBits.ManageMessages) ||
-      interaction.user.id === interaction.guild.ownerId
-    )
-  ) {
-    return interaction.reply({ content: 'You do not have permission to use this command.', ephemeral: true })
-  }
+  const { commandName, guildId, user } = interaction
 
   if (!serverData[guildId]) {
     serverData[guildId] = {
@@ -69,10 +66,20 @@ client.on('interactionCreate', async (interaction) => {
       typingTimeouts: {},
       serverOpenAIKey: null,
       memory: [],
+      ignoredUsers: new Set(),
     }
   }
 
   const server = serverData[guildId]
+
+  if (!['optin', 'optout'].includes(commandName)) {
+    if (!(interaction.member.permissions.has(PermissionFlagsBits.Administrator) ||
+        interaction.member.permissions.has(PermissionFlagsBits.ManageMessages) ||
+        interaction.user.id === interaction.guild.ownerId)) {
+      return interaction.reply({ content: 'You do not have permission to use this command.', ephemeral: true })
+    }
+  }
+
   const botStateChannels = interaction.guild.channels.cache.filter(
     (channel) =>
       channel.isTextBased?.() &&
@@ -80,7 +87,7 @@ client.on('interactionCreate', async (interaction) => {
   )
 
   try {
-    await interaction.deferReply({ ephemeral: true })
+    await interaction.deferReply({ ephemeral: ['key', 'currentkey'].includes(commandName) })
 
     if (commandName === 'key') {
       server.serverOpenAIKey = interaction.options.getString('key')
@@ -88,9 +95,7 @@ client.on('interactionCreate', async (interaction) => {
     }
 
     if (commandName === 'currentkey') {
-      if (!server.serverOpenAIKey) {
-        return interaction.editReply({ content: 'No API key set.' })
-      }
+      if (!server.serverOpenAIKey) return interaction.editReply({ content: 'No API key set.' })
       const maskedKey = server.serverOpenAIKey.slice(0, 5) + '*****' + server.serverOpenAIKey.slice(-5)
       await interaction.editReply({ content: `Stored API key: \`${maskedKey}\`` })
     }
@@ -118,6 +123,16 @@ client.on('interactionCreate', async (interaction) => {
       botStateChannels.forEach(ch => ch.send('AI memory has been wiped.'))
       await interaction.editReply({ content: 'AI memory has been wiped.' })
     }
+
+    if (commandName === 'optout') {
+      server.ignoredUsers.add(user.id)
+      await interaction.editReply({ content: 'You have opted out of AI interactions.' })
+    }
+
+    if (commandName === 'optin') {
+      server.ignoredUsers.delete(user.id)
+      await interaction.editReply({ content: 'You have opted back into AI interactions.' })
+    }
   } catch (error) {
     console.error(error)
     try {
@@ -128,27 +143,13 @@ client.on('interactionCreate', async (interaction) => {
   }
 })
 
-const initializeServer = (guildId) => {
-  if (!serverData[guildId]) {
-    serverData[guildId] = {
-      botActive: false,
-      messageHistory: {},
-      lastMessageTime: {},
-      messageBuffer: {},
-      typingTimeouts: {},
-      serverOpenAIKey: null,
-      memory: [],
-    }
-  }
-}
-
 client.on('messageCreate', async (message) => {
   if (message.author.bot) return
   const guildId = message.guild.id
 
   initializeServer(guildId)
   const server = serverData[guildId]
-  if (!server.botActive) return
+  if (!server.botActive || server.ignoredUsers.has(message.author.id)) return
 
   const member = await message.guild.members.fetch(message.author.id).catch(() => null)
   const displayName = member ? member.displayName : message.author.username
@@ -226,5 +227,20 @@ client.on('messageDelete', (deletedMessage) => {
     (msg) => msg.content !== deletedMessage.content
   )
 })
+
+const initializeServer = (guildId) => {
+  if (!serverData[guildId]) {
+    serverData[guildId] = {
+      botActive: false,
+      messageHistory: {},
+      lastMessageTime: {},
+      messageBuffer: {},
+      typingTimeouts: {},
+      serverOpenAIKey: null,
+      memory: [],
+      ignoredUsers: new Set(),
+    }
+  }
+}
 
 client.login(process.env.DISCORD_BOT_TOKEN)
