@@ -39,17 +39,13 @@ const registerCommands = async () => {
 
   const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_BOT_TOKEN)
   try {
-    console.log('Registering global commands...')
     await rest.put(Routes.applicationCommands(client.user.id), { body: commands })
-    console.log('Global slash commands registered.')
   } catch (error) {
     console.error('Error registering global commands:', error)
   }
 }
 
 client.on('ready', async () => {
-  console.log('Bot is ready')
-  console.log('Version 1.6')
   await registerCommands()
 })
 
@@ -155,8 +151,6 @@ client.on('messageCreate', async (message) => {
   const displayName = member ? member.displayName : message.author.username
   const userMessage = `${displayName}: ${message.content}`
 
-  console.log(`Message from ${displayName}: ${message.content}`)
-
   if (!server.messageHistory[displayName]) {
     server.messageHistory[displayName] = []
     server.messageBuffer[displayName] = ''
@@ -178,12 +172,6 @@ client.on('messageCreate', async (message) => {
       server.messageHistory[displayName].push({ role: 'user', content: fullMessage })
       server.messageBuffer[displayName] = ''
 
-      console.log('Message sent to AI:')
-      console.log(server.messageHistory[displayName])
-
-      if (server.messageHistory[displayName].length > 100000) server.messageHistory[displayName].shift()
-
-      let botReply = ''
       const dynamicOpenAI = new OpenAI({ apiKey: server.serverOpenAIKey })
       const completion = await dynamicOpenAI.chat.completions.create({
         model: 'gpt-4o-mini',
@@ -192,11 +180,26 @@ client.on('messageCreate', async (message) => {
           ...server.messageHistory[displayName],
         ],
       })
-      botReply = completion.choices[0].message.content.trim()
+      let botReply = completion.choices[0].message.content.trim()
 
-      if (server.messageHistory[displayName].length > 1) {
-        let lastBotResponse = server.messageHistory[displayName][server.messageHistory[displayName].length - 2].content
-        if (botReply === lastBotResponse) botReply = 'is anyone there?'
+      if (botReply.length > 2000) {
+        console.error('');
+        server.messageHistory[displayName].push({
+          role: 'assistant',
+          content: 'that message was too long to be sent to discord',
+        })
+        server.messageHistory[displayName].push({
+          role: 'user',
+          content: 'pls say that again but keep it under 2000 characters',
+        })
+        const redo = await dynamicOpenAI.chat.completions.create({
+          model: 'gpt-4o-mini',
+          messages: [
+            { role: 'system', content: prompt },
+            ...server.messageHistory[displayName],
+          ],
+        })
+        botReply = redo.choices[0].message.content.trim()
       }
 
       const originalMessage = await message.channel.messages.fetch(message.id).catch(() => null)
@@ -208,11 +211,10 @@ client.on('messageCreate', async (message) => {
         message.channel.send(botReply)
       }
 
-      console.log(`[Channel: ${message.channel.name}] Bot response: ${botReply}`)
       server.messageHistory[displayName].push({ role: 'assistant', content: botReply })
     } catch (error) {
       console.error('Error fetching from OpenAI:', error)
-      message.reply('u sent this right before my memory went boom and idk what u sent anymore and what i was going to say🤷‍♂️')
+      message.reply('either you sent this before my memory went boom so idk what to say, or u didnt put a key yet💥🤷‍♂️🗝️')
     }
   }, 5000)
 })
