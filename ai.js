@@ -21,13 +21,17 @@ const registerCommands = async () => {
       .setName('key')
       .setDescription('Set the OpenAI API key for the server')
       .addStringOption(option =>
-        option.setName('key').setDescription('Your OpenAI API key').setRequired(true)),
+        option.setName('key')
+          .setDescription('Your OpenAI API key')
+          .setRequired(true)),
     new SlashCommandBuilder().setName('currentkey').setDescription('Check the stored OpenAI API key'),
     new SlashCommandBuilder().setName('startai').setDescription('Turn on the AI bot'),
     new SlashCommandBuilder().setName('stopai').setDescription('Turn off the AI bot'),
     new SlashCommandBuilder().setName('wipememory').setDescription('Wipe the AI’s memory'),
     new SlashCommandBuilder().setName('optout').setDescription('Opt out of AI interactions'),
     new SlashCommandBuilder().setName('optin').setDescription('Opt back in to AI interactions'),
+    new SlashCommandBuilder().setName('genimage').setDescription('Generate an image using AI')
+      .addStringOption(option => option.setName('prompt').setDescription('Description of the image').setRequired(true)),
   ].map(cmd => {
     if (!['optout', 'optin'].includes(cmd.name)) {
       cmd.setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages)
@@ -44,7 +48,7 @@ const registerCommands = async () => {
 }
 
 client.on('ready', async () => {
-  console.log('Version: 1.7')
+  console.log('Version: 1.7.1');
   await registerCommands()
 })
 
@@ -128,6 +132,12 @@ client.on('interactionCreate', async (interaction) => {
       server.ignoredUsers.delete(user.id)
       await interaction.editReply({ content: 'You have opted back into AI interactions.' })
     }
+
+    if (commandName === 'genimage') {
+      const prompt = interaction.options.getString('prompt')
+      const image = await generateImage(prompt)
+      await interaction.editReply({ content: 'Here is your image.', files: [image] })
+    }
   } catch (error) {
     console.error(error)
     try {
@@ -140,11 +150,8 @@ client.on('interactionCreate', async (interaction) => {
 
 client.on('messageCreate', async (message) => {
   if (message.author.bot) return
-  if (!message.guild) return
-  const perms = message.channel.permissionsFor(message.guild.roles.everyone)
-  if (!perms?.has(PermissionFlagsBits.SendMessages)) return
-
   const guildId = message.guild.id
+
   initializeServer(guildId)
   const server = serverData[guildId]
   if (!server.botActive || server.ignoredUsers.has(message.author.id)) return
@@ -152,16 +159,6 @@ client.on('messageCreate', async (message) => {
   const member = await message.guild.members.fetch(message.author.id).catch(() => null)
   const displayName = member ? member.displayName : message.author.username
   const userMessage = `${displayName}: ${message.content}`
-
-  const imageUrls = message.attachments
-    .filter(att => att.contentType?.startsWith('image/'))
-    .map(att => att.url)
-
-  const embedsWithImages = message.embeds
-    .filter(embed => embed.image?.url)
-    .map(embed => embed.image.url)
-
-  const allImageUrls = [...imageUrls, ...embedsWithImages]
 
   if (!server.messageHistory[displayName]) {
     server.messageHistory[displayName] = []
@@ -185,32 +182,17 @@ client.on('messageCreate', async (message) => {
       server.messageBuffer[displayName] = ''
 
       const dynamicOpenAI = new OpenAI({ apiKey: server.serverOpenAIKey })
-      let messages = [
-        { role: 'system', content: prompt },
-        ...server.messageHistory[displayName],
-      ]
-
-      if (allImageUrls.length) {
-        allImageUrls.forEach(url => {
-          messages.push({
-            role: 'user',
-            content: [
-              { type: 'text', text: fullMessage },
-              { type: 'image_url', image_url: { url } }
-            ]
-          })
-        })
-      } else {
-        messages.push({ role: 'user', content: fullMessage })
-      }
-
       const completion = await dynamicOpenAI.chat.completions.create({
-        model: 'gpt-4o',
-        messages,
+        model: 'gpt-4o-mini',
+        messages: [
+          { role: 'system', content: prompt },
+          ...server.messageHistory[displayName],
+        ],
       })
       let botReply = completion.choices[0].message.content.trim()
 
       if (botReply.length > 2000) {
+        console.error('');
         server.messageHistory[displayName].push({
           role: 'assistant',
           content: 'that message was too long to be sent to discord',
@@ -220,7 +202,7 @@ client.on('messageCreate', async (message) => {
           content: 'pls say that again but keep it under 2000 characters',
         })
         const redo = await dynamicOpenAI.chat.completions.create({
-          model: 'gpt-4o',
+          model: 'gpt-4o-mini',
           messages: [
             { role: 'system', content: prompt },
             ...server.messageHistory[displayName],
