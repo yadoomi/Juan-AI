@@ -16,15 +16,8 @@ let serverData = {}
 const prompt = fs.readFileSync('./prompt.txt', 'utf-8')
 
 const registerCommands = async () => {
-  console.log('Registering Bot Commands...')
   const commands = [
-    new SlashCommandBuilder()
-      .setName('key')
-      .setDescription('Set the OpenAI API key for the server')
-      .addStringOption(option =>
-        option.setName('key')
-          .setDescription('Your OpenAI API key')
-          .setRequired(true)),
+    new SlashCommandBuilder().setName('key').setDescription('Set the OpenAI API key for the server').addStringOption(option => option.setName('key').setDescription('Your OpenAI API key').setRequired(true)),
     new SlashCommandBuilder().setName('currentkey').setDescription('Check the stored OpenAI API key'),
     new SlashCommandBuilder().setName('startai').setDescription('Turn on the AI bot'),
     new SlashCommandBuilder().setName('stopai').setDescription('Turn off the AI bot'),
@@ -47,44 +40,27 @@ const registerCommands = async () => {
 }
 
 client.on('ready', async () => {
-  console.log('Version: 1.7.8')
+  console.log('Version: 1.7.1')
   await registerCommands()
 })
 
 client.on('interactionCreate', async (interaction) => {
-  if (!interaction.isCommand() || !interaction.guild) return
+  if (!interaction.isCommand()) return
   const { commandName, guildId, user } = interaction
 
-  if (!serverData[guildId]) {
-    serverData[guildId] = {
-      botActive: false,
-      messageHistory: {},
-      lastMessageTime: {},
-      messageBuffer: {},
-      typingTimeouts: {},
-      serverOpenAIKey: null,
-      memory: [],
-      ignoredUsers: new Set(),
-    }
-  }
-
+  if (!serverData[guildId]) initializeServer(guildId)
   const server = serverData[guildId]
 
   if (!['optin', 'optout'].includes(commandName)) {
-    const hasPerms =
-      interaction.member?.permissions?.has(PermissionFlagsBits.Administrator) ||
-      interaction.member?.permissions?.has(PermissionFlagsBits.ManageMessages) ||
-      interaction.user.id === interaction.guild.ownerId
-
-    if (!hasPerms) {
+    if (!(interaction.member.permissions.has(PermissionFlagsBits.Administrator) ||
+        interaction.member.permissions.has(PermissionFlagsBits.ManageMessages) ||
+        interaction.user.id === interaction.guild.ownerId)) {
       return interaction.reply({ content: 'You do not have permission to use this command.', ephemeral: true })
     }
   }
 
   const botStateChannels = interaction.guild.channels.cache.filter(
-    (channel) =>
-      channel.isTextBased?.() &&
-      channel.name.toLowerCase().includes('bot-state')
+    (channel) => channel.isTextBased?.() && channel.name.toLowerCase().includes('bot-state')
   )
 
   try {
@@ -104,14 +80,18 @@ client.on('interactionCreate', async (interaction) => {
     if (commandName === 'startai') {
       server.botActive = true
       client.user.setPresence({ status: 'online', activities: [{ name: 'AI without the use of Shapes!', type: 'PLAYING' }] })
-      botStateChannels.forEach(ch => ch.send('AI has turned on'))
+      botStateChannels.forEach(ch => {
+        if (ch.permissionsFor(interaction.guild.roles.everyone).has(PermissionFlagsBits.SendMessages)) ch.send('AI has turned on')
+      })
       await interaction.editReply({ content: 'AI is now active.' })
     }
 
     if (commandName === 'stopai') {
       server.botActive = false
       client.user.setPresence({ status: 'offline' })
-      botStateChannels.forEach(ch => ch.send('AI has turned off'))
+      botStateChannels.forEach(ch => {
+        if (ch.permissionsFor(interaction.guild.roles.everyone).has(PermissionFlagsBits.SendMessages)) ch.send('AI has turned off')
+      })
       await interaction.editReply({ content: 'AI is now inactive.' })
     }
 
@@ -121,7 +101,9 @@ client.on('interactionCreate', async (interaction) => {
       server.lastMessageTime = {}
       server.typingTimeouts = {}
       server.memory = []
-      botStateChannels.forEach(ch => ch.send('AI memory has been wiped.'))
+      botStateChannels.forEach(ch => {
+        if (ch.permissionsFor(interaction.guild.roles.everyone).has(PermissionFlagsBits.SendMessages)) ch.send('AI memory has been wiped.')
+      })
       await interaction.editReply({ content: 'AI memory has been wiped.' })
     }
 
@@ -145,9 +127,12 @@ client.on('interactionCreate', async (interaction) => {
 })
 
 client.on('messageCreate', async (message) => {
-  if (message.author.bot || !message.guild) return
-  const guildId = message.guild.id
+  if (message.author.bot) return
+  if (!message.guild) return
 
+  if (!message.channel.permissionsFor(message.guild.roles.everyone).has(PermissionFlagsBits.SendMessages)) return
+
+  const guildId = message.guild.id
   initializeServer(guildId)
   const server = serverData[guildId]
   if (!server.botActive || server.ignoredUsers.has(message.author.id)) return
@@ -174,21 +159,41 @@ client.on('messageCreate', async (message) => {
     try {
       const fullMessage = server.messageBuffer[displayName].trim()
       if (!fullMessage) return
-      server.messageHistory[displayName].push({ role: 'user', content: fullMessage })
       server.messageBuffer[displayName] = ''
 
-      const dynamicOpenAI = new OpenAI({ apiKey: server.serverOpenAIKey })
-      const completion = await dynamicOpenAI.chat.completions.create({
-        model: 'gpt-4o',
-        messages: [
-          { role: 'system', content: prompt },
-          ...server.messageHistory[displayName],
-        ],
-      })
-      let botReply = completion.choices[0].message.content.trim()
+      const allImageUrls = [...message.attachments.values()].filter(a => a.contentType?.startsWith('image/')).map(a => a.url)
 
+      const dynamicOpenAI = new OpenAI({ apiKey: server.serverOpenAIKey })
+      const messages = [
+        { role: 'system', content: prompt },
+        ...server.messageHistory[displayName],
+      ]
+
+      if (allImageUrls.length) {
+        allImageUrls.forEach(url => {
+          const imageMsg = {
+            role: 'user',
+            content: [
+              { type: 'text', text: fullMessage },
+              { type: 'image_url', image_url: { url } }
+            ]
+          }
+          messages.push(imageMsg)
+          server.messageHistory[displayName].push(imageMsg)
+        })
+      } else {
+        const textMsg = { role: 'user', content: fullMessage }
+        messages.push(textMsg)
+        server.messageHistory[displayName].push(textMsg)
+      }
+
+      const completion = await dynamicOpenAI.chat.completions.create({
+        model: 'gpt-4o-mini',
+        messages,
+      })
+
+      let botReply = completion.choices[0].message.content.trim()
       if (botReply.length > 2000) {
-        console.error('Message too long (2000+ characters), telling AI to redo message but shorter.', error)
         server.messageHistory[displayName].push({
           role: 'assistant',
           content: 'that message was too long to be sent to discord',
@@ -197,12 +202,13 @@ client.on('messageCreate', async (message) => {
           role: 'user',
           content: 'pls say that again but keep it under 2000 characters',
         })
+
         const redo = await dynamicOpenAI.chat.completions.create({
           model: 'gpt-4o-mini',
           messages: [
             { role: 'system', content: prompt },
             ...server.messageHistory[displayName],
-          ],
+          ]
         })
         botReply = redo.choices[0].message.content.trim()
       }
@@ -219,7 +225,7 @@ client.on('messageCreate', async (message) => {
       server.messageHistory[displayName].push({ role: 'assistant', content: botReply })
     } catch (error) {
       console.error('Error fetching from OpenAI:', error)
-      message.reply('either you sent this before my memory went boom so idk what to say, or u didnt put a key yet💥🤷‍♂️🗝️')
+      message.reply('either you sent this before my memory went boom so idk what to say, or u didnt put a key yet\ud83d\udca5\ud83e\uddf7\ud83d\udd11')
     }
   }, 5000)
 })
@@ -247,7 +253,6 @@ const initializeServer = (guildId) => {
       memory: [],
       ignoredUsers: new Set(),
     }
-    console.log('Initalized data for server ${guildId}')
   }
 }
 
