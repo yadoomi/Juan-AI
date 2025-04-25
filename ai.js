@@ -274,4 +274,4 @@ async function getAIReply(text, server, userId) {}
 async function synthesizeTTS(text) {}
 
 client.login(process.env.DISCORD_BOT_TOKEN)
-console.log('Change this to deploy: 1')
+// I want to deploy: 1
