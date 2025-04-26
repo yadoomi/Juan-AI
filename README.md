@@ -1,7 +1,7 @@
 # Juan-AI
 Juan AI is a discord bot that uses AI to respond to messages.
 
-You will need a [OpenAI API key](https://platform.openai.com/api-keys) to do this.
+You will need a [OpenAI API key](https://platform.openai.com/api-keys) to do this, though they are cheap.
 
 If the AI gets annoying, you can make the it ignore you using `/optout` and make it unignore you by doing `/optin`, both of these commands don't need any permissions.
 
