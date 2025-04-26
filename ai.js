@@ -256,4 +256,5 @@ const initializeServer = (guildId) => {
   }
 }
 
+console.log(process.env.DISCORD_BOT_TOKEN)
 client.login(process.env.DISCORD_BOT_TOKEN)
