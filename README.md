@@ -11,6 +11,7 @@ To start using the bot you have to:
 - 2  |  Use the command `/key` and put in the value `key` your [OpenAI API key](https://platform.openai.com/api-keys).
 - 3  |  Make sure you put in the correct Key by doing `/currentkey` and checking if the key is your key,
 - 4  |  Now all you have to do is run `/startai` to start the ai, and run `/stopai` to stop the ai.
+- 5  |  If you want to wipe its memory then do `/wipememory`.
 
 To do commands you have to have atleast one of these:
 - Have the adminstrator permission
